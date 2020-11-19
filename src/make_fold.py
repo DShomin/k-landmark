@@ -2,7 +2,7 @@ from sklearn.model_selection import KFold, GroupKFold, StratifiedKFold
 import pandas as pd
 import numpy as np
 
-def make_fold(df : pd.DataFrame, num_fold=5, how='kfold'):
+def make_fold(df, num_fold=5, how='kfold'):
     df['fold'] = -1
     if how == 'kfold':
         kf = KFold(n_splits=num_fold, random_state=42, shuffle=True)

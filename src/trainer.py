@@ -20,6 +20,9 @@ def train(args, trn_cfg):
     best_val_score = 0.0
 
     print('Training Start...')
+    if args.Warmup:
+        optimizer.zero_grad()
+        optimizer.step()
     # scaler = amp.GradScaler()
     # Train the model
     for epoch in range(args.epochs):
@@ -29,6 +32,8 @@ def train(args, trn_cfg):
         # train
         model.train()
         trn_loss = 0.0
+        if args.Warmup:
+            scheduler.step(epoch)
 
         for batch_idx, (images, labels) in enumerate(train_loader):
             optimizer.zero_grad()
@@ -94,14 +99,15 @@ def train(args, trn_cfg):
         lr = [_['lr'] for _ in optimizer.param_groups]
         print("Epoch {} - trn_loss: {:.4f}  val_loss: {:.4f}  val_score: {:.4f} lr: {:.5f}  time: {:.0f}s\n".format(
                 epoch+1, epoch_train_loss, epoch_val_loss, val_score, lr[0], elapsed))
-        scheduler.step(val_score)
+        if not args.Warmup:
+            scheduler.step(val_score)
         # scheduler.step()
 
         
         # save model weight
         if val_score > best_val_score:
             best_val_score = val_score            
-            file_save_name = 'best_score_ep30_cos_b0' + '_fold' + str(args.fold_num) + '.pt'
+            file_save_name = 'best_score_ep30_sz448_rer_lrup_b1' + '_fold' + str(args.fold_num) + '.pt'
 
             torch.save(model.state_dict(), os.path.join('../models', file_save_name))
 

@@ -2,7 +2,7 @@ import math
 import random
 from PIL import Image, ImageOps
 from torchvision.transforms import Compose, ToTensor, Normalize, RandomResizedCrop, RandomApply, Resize, CenterCrop, RandomAffine
-from torchvision.transforms import RandomHorizontalFlip, RandomVerticalFlip, ColorJitter, RandomGrayscale, RandomRotation
+from torchvision.transforms import RandomHorizontalFlip, RandomVerticalFlip, ColorJitter, RandomGrayscale, RandomRotation, RandomErasing
 
 
 def get_transform(
@@ -49,4 +49,7 @@ def get_transform(
     transform.append(RandomApply(augments, p=augment_ratio))   
     transform.append(ToTensor())
     transform.append(Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+    if 'random_erasing' in transform_list:
+        transform.append(RandomErasing())
+
     return Compose(transform)

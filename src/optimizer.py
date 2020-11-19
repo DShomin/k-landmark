@@ -6,6 +6,7 @@ from torch import optim
 from torch.optim import Adam, SGD
 from torch.optim.optimizer import Optimizer, required
 from torch.optim.lr_scheduler import _LRScheduler, LambdaLR, CosineAnnealingLR, StepLR, ReduceLROnPlateau
+from warmup_scheduler import GradualWarmupScheduler
 
 
 def build_optimizer(args, model):
@@ -29,10 +30,10 @@ def build_scheduler(args, optimizer, batch_num):
 
     if args.scheduler == 'Cosine':
         T_max = 10
-        eta_min = 1e-5
+        eta_min = 1e-4
         scheduler = CosineAnnealingLR(optimizer=optimizer, T_max=T_max, eta_min=eta_min)
     elif args.scheduler == 'Steplr':
-        step_size = 10
+        step_size = 5
         gamma = 0.8
         scheduler = StepLR(optimizer=optimizer, step_size=step_size, gamma=gamma)
     elif args.scheduler == 'Lambda':
@@ -42,8 +43,29 @@ def build_scheduler(args, optimizer, batch_num):
     else:
         NotImplementedError
 
+    if args.Warmup:
+        # scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=10, after_scheduler=scheduler)
+        scheduler = GradualWarmupSchedulerV2(optimizer, multiplier=1, total_epoch=10, after_scheduler=scheduler)
+        
+
     return scheduler
 
+
+class GradualWarmupSchedulerV2(GradualWarmupScheduler):
+    def __init__(self, optimizer, multiplier, total_epoch, after_scheduler=None):
+        super(GradualWarmupSchedulerV2, self).__init__(optimizer, multiplier, total_epoch, after_scheduler)
+    def get_lr(self):
+        if self.last_epoch > self.total_epoch:
+            if self.after_scheduler:
+                if not self.finished:
+                    self.after_scheduler.base_lrs = [base_lr * self.multiplier for base_lr in self.base_lrs]
+                    self.finished = True
+                return self.after_scheduler.get_lr()
+            return [base_lr * self.multiplier for base_lr in self.base_lrs]
+        if self.multiplier == 1.0:
+            return [base_lr * (float(self.last_epoch) / self.total_epoch) for base_lr in self.base_lrs]
+        else:
+            return [base_lr * ((self.multiplier - 1.) * self.last_epoch / self.total_epoch + 1.) for base_lr in self.base_lrs]
 
 class AdamW(Optimizer):
     r"""Implements AdamW algorithm.

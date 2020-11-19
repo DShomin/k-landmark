@@ -1,11 +1,48 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+import math
 
+class DenseCrossEntropy(nn.Module):
+    def forward(self, x, target):
+        x = x.float()
+        target = target.float()
+        logprobs = torch.nn.functional.log_softmax(x, dim=-1)
+
+        loss = -logprobs * target
+        loss = loss.sum(-1)
+        return loss.mean()
+
+class ArcFaceLossAdaptiveMargin(nn.modules.Module):
+    def __init__(self, margins, device, s=30.0):
+        super().__init__()
+        self.crit = DenseCrossEntropy()
+        self.s = s
+        self.margins = margins
+        self.device = device
+            
+    def forward(self, logits, labels, out_dim):
+        ms = []
+        ms = self.margins[labels.cpu().numpy()]
+        cos_m = torch.from_numpy(np.cos(ms)).float().to(self.device)
+        sin_m = torch.from_numpy(np.sin(ms)).float().to(self.device)
+        th = torch.from_numpy(np.cos(math.pi - ms)).float().to(self.device)
+        mm = torch.from_numpy(np.sin(math.pi - ms) * ms).float().to(self.device)
+        labels = F.one_hot(labels, out_dim).float()
+        logits = logits.float()
+        cosine = logits
+        sine = torch.sqrt(1.0 - torch.pow(cosine, 2))
+        phi = cosine * cos_m.view(-1,1) - sine * sin_m.view(-1,1)
+        phi = torch.where(cosine > th.view(-1,1), phi, cosine - mm.view(-1,1))
+        output = (labels * phi) + ((1.0 - labels) * cosine)
+        output *= self.s
+        loss = self.crit(output, labels)
+        return loss 
 
 class AngularPenaltySMLoss(nn.Module):
 
-    def __init__(self, out_features, loss_type='arcface', eps=1e-7, s=None, m=None):
+    def __init__(self, out_features, loss_type='arcface', eps=1e-5, s=None, m=None):
         '''
         Angular Penalty Softmax Loss
         Three 'loss_types' available: ['arcface', 'sphereface', 'cosface']
